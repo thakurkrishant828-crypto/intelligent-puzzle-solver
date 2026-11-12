@@ -1,0 +1,457 @@
+
+from collections import deque
+import heapq
+import time
+import tracemalloc
+
+
+class Node:
+    def __init__(self, state, parent=None, action=None, g=0, h=0):
+        self.state = state
+        self.parent = parent
+        self.action = action
+        self.g = g
+        self.h = h
+        self.f = g + h
+
+    def reconstruct_path(self):
+        path = []
+        curr = self
+
+        while curr:
+            path.append(curr)
+            curr = curr.parent
+
+        return path[::-1]
+
+
+class PuzzleBoard:
+    GOAL = (1, 2, 3, 4, 5, 6, 7, 8, 0)
+
+    @staticmethod
+    def count_inversions(state):
+        arr = [x for x in state if x != 0]
+
+        return sum(
+            1 for i in range(len(arr))
+            for j in range(i + 1, len(arr))
+            if arr[i] > arr[j]
+        )
+
+    @classmethod
+    def is_solvable(cls, state):
+        return cls.count_inversions(state) % 2 == 0
+
+    @staticmethod
+    def get_successors(state):
+        result = []
+        idx = state.index(0)
+        r, c = divmod(idx, 3)
+
+        moves = []
+
+        if r > 0:
+            moves.append(("UP", idx - 3))
+
+        if r < 2:
+            moves.append(("DOWN", idx + 3))
+
+        if c > 0:
+            moves.append(("LEFT", idx - 1))
+
+        if c < 2:
+            moves.append(("RIGHT", idx + 1))
+
+        for action, nxt in moves:
+            board = list(state)
+            board[idx], board[nxt] = board[nxt], board[idx]
+            result.append((action, tuple(board)))
+
+        return result
+
+
+class Heuristics:
+    TARGETS = {
+        1: (0, 0), 2: (0, 1), 3: (0, 2),
+        4: (1, 0), 5: (1, 1), 6: (1, 2),
+        7: (2, 0), 8: (2, 1)
+    }
+
+    @staticmethod
+    def misplaced_tiles(state, goal=PuzzleBoard.GOAL):
+        return sum(
+            1 for i in range(9)
+            if state[i] != 0 and state[i] != goal[i]
+        )
+
+    @classmethod
+    def manhattan_distance(cls, state, goal=PuzzleBoard.GOAL):
+        distance = 0
+
+        for idx, val in enumerate(state):
+            if val != 0:
+                r, c = divmod(idx, 3)
+                tr, tc = cls.TARGETS[val]
+
+                distance += abs(r - tr) + abs(c - tc)
+
+        return distance
+
+    @classmethod
+    def linear_conflict(cls, state, goal=PuzzleBoard.GOAL):
+        md = cls.manhattan_distance(state, goal)
+        conflicts = 0
+
+        for r in range(3):
+            row = [
+                state[r * 3 + c]
+                for c in range(3)
+                if state[r * 3 + c] != 0
+            ]
+
+            for i in range(len(row)):
+                for j in range(i + 1, len(row)):
+                    if (
+                        cls.TARGETS[row[i]][0] == r
+                        and cls.TARGETS[row[j]][0] == r
+                    ):
+                        if (
+                            cls.TARGETS[row[i]][1]
+                            > cls.TARGETS[row[j]][1]
+                        ):
+                            conflicts += 1
+
+        for c in range(3):
+            col = [
+                state[r * 3 + c]
+                for r in range(3)
+                if state[r * 3 + c] != 0
+            ]
+
+            for i in range(len(col)):
+                for j in range(i + 1, len(col)):
+                    if (
+                        cls.TARGETS[col[i]][1] == c
+                        and cls.TARGETS[col[j]][1] == c
+                    ):
+                        if (
+                            cls.TARGETS[col[i]][0]
+                            > cls.TARGETS[col[j]][0]
+                        ):
+                            conflicts += 1
+
+        return md + (2 * conflicts)
+
+
+def solve_bfs(start, goal=PuzzleBoard.GOAL):
+    root = Node(start)
+    frontier = deque([root])
+    explored = {start}
+    expanded = 0
+    generated = 1
+
+    while frontier:
+        curr = frontier.popleft()
+        expanded += 1
+
+        if curr.state == goal:
+            return curr.reconstruct_path(), expanded, generated
+
+        for action, nxt in PuzzleBoard.get_successors(curr.state):
+            if nxt not in explored:
+                explored.add(nxt)
+                generated += 1
+
+                frontier.append(
+                    Node(nxt, curr, action, curr.g + 1)
+                )
+
+    return None, expanded, generated
+
+
+def solve_dfs(start, goal=PuzzleBoard.GOAL):
+    root = Node(start)
+    frontier = [root]
+    explored = {start}
+    expanded = 0
+    generated = 1
+
+    while frontier:
+        curr = frontier.pop()
+        expanded += 1
+
+        if curr.state == goal:
+            return curr.reconstruct_path(), expanded, generated
+
+        for action, nxt in PuzzleBoard.get_successors(curr.state):
+            if nxt not in explored:
+                explored.add(nxt)
+                generated += 1
+
+                frontier.append(
+                    Node(nxt, curr, action, curr.g + 1)
+                )
+
+    return None, expanded, generated
+
+
+def solve_ucs(start, goal=PuzzleBoard.GOAL):
+    root = Node(start)
+    frontier = [(0, 0, root)]
+    cost_so_far = {start: 0}
+    counter = 0
+    expanded = 0
+    generated = 1
+
+    while frontier:
+        cost, _, curr = heapq.heappop(frontier)
+
+        if cost > cost_so_far.get(curr.state, float("inf")):
+            continue
+
+        expanded += 1
+
+        if curr.state == goal:
+            return curr.reconstruct_path(), expanded, generated
+
+        for action, nxt in PuzzleBoard.get_successors(curr.state):
+            new_cost = curr.g + 1
+
+            if new_cost < cost_so_far.get(nxt, float("inf")):
+                cost_so_far[nxt] = new_cost
+                counter += 1
+                generated += 1
+
+                child = Node(nxt, curr, action, new_cost)
+
+                heapq.heappush(
+                    frontier, (new_cost, counter, child)
+                )
+
+    return None, expanded, generated
+
+
+def solve_greedy(start, h_fn, goal=PuzzleBoard.GOAL):
+    root = Node(start, h=h_fn(start, goal))
+    frontier = [(root.h, 0, root)]
+    explored = {start}
+    counter = 0
+    expanded = 0
+    generated = 1
+
+    while frontier:
+        _, _, curr = heapq.heappop(frontier)
+        expanded += 1
+
+        if curr.state == goal:
+            return curr.reconstruct_path(), expanded, generated
+
+        for action, nxt in PuzzleBoard.get_successors(curr.state):
+            if nxt not in explored:
+                explored.add(nxt)
+                generated += 1
+                counter += 1
+
+                child = Node(
+                    nxt, curr, action,
+                    curr.g + 1,
+                    h_fn(nxt, goal)
+                )
+
+                heapq.heappush(
+                    frontier, (child.h, counter, child)
+                )
+
+    return None, expanded, generated
+
+
+def solve_astar(start, h_fn, goal=PuzzleBoard.GOAL):
+    root = Node(start, g=0, h=h_fn(start, goal))
+
+    frontier = [(root.f, root.h, 0, root)]
+    cost_so_far = {start: 0}
+
+    counter = 0
+    expanded = 0
+    generated = 1
+
+    while frontier:
+        _, _, _, curr = heapq.heappop(frontier)
+
+        if curr.g > cost_so_far.get(
+            curr.state, float("inf")
+        ):
+            continue
+
+        if curr.state == goal:
+            return curr.reconstruct_path(), expanded, generated
+
+        expanded += 1
+
+        for action, nxt in PuzzleBoard.get_successors(curr.state):
+            new_cost = curr.g + 1
+
+            if new_cost < cost_so_far.get(nxt, float("inf")):
+                cost_so_far[nxt] = new_cost
+                counter += 1
+                generated += 1
+
+                child = Node(
+                    nxt,
+                    curr,
+                    action,
+                    new_cost,
+                    h_fn(nxt, goal)
+                )
+
+                heapq.heappush(
+                    frontier,
+                    (child.f, child.h, counter, child)
+                )
+
+    return None, expanded, generated
+
+
+def display_board(state):
+    for i in range(0, 9, 3):
+        print("+---+---+---+")
+        print(
+            "| " + " | ".join(
+                str(x) if x != 0 else " "
+                for x in state[i:i + 3]
+            ) + " |"
+        )
+
+    print("+---+---+---+")
+
+
+def display_solution(path):
+    if path is None:
+        print("No solution found.")
+        return
+
+    for step, node in enumerate(path):
+        print("\nStep:", step)
+
+        if node.action:
+            print("Move:", node.action)
+
+        display_board(node.state)
+
+    print("\nTotal Moves:", len(path) - 1)
+
+
+def run_solver(start, algorithm, heuristic=None):
+    if not PuzzleBoard.is_solvable(start):
+        print("This puzzle is not solvable.")
+        return
+
+    tracemalloc.start()
+    start_time = time.perf_counter()
+
+    if algorithm == "BFS":
+        result = solve_bfs(start)
+
+    elif algorithm == "DFS":
+        result = solve_dfs(start)
+
+    elif algorithm == "UCS":
+        result = solve_ucs(start)
+
+    elif algorithm == "GREEDY":
+        result = solve_greedy(start, heuristic)
+
+    elif algorithm == "ASTAR":
+        result = solve_astar(start, heuristic)
+
+    else:
+        print("Invalid algorithm.")
+        tracemalloc.stop()
+        return
+
+    elapsed = time.perf_counter() - start_time
+    _, memory = tracemalloc.get_traced_memory()
+    tracemalloc.stop()
+
+    path, expanded, generated = result
+
+    display_solution(path)
+
+    print("\nExecution Summary")
+    print("Algorithm:", algorithm)
+    print("Nodes Expanded:", expanded)
+    print("Nodes Generated:", generated)
+    print("Execution Time:", round(elapsed, 6), "seconds")
+    print("Peak Memory:", round(memory / 1024, 2), "KB")
+
+
+if __name__ == "__main__":
+
+    start_state = (
+        1, 2, 3,
+        4, 0, 6,
+        7, 5, 8
+    )
+
+    print("INTELLIGENT PUZZLE SOLVER")
+    print("1. BFS")
+    print("2. DFS")
+    print("3. UCS")
+    print("4. Greedy Best First Search")
+    print("5. A* Search")
+
+    choice = input("Enter your choice: ")
+
+    if choice == "1":
+        run_solver(start_state, "BFS")
+
+    elif choice == "2":
+        run_solver(start_state, "DFS")
+
+    elif choice == "3":
+        run_solver(start_state, "UCS")
+
+    elif choice == "4":
+        print("1. Misplaced Tiles")
+        print("2. Manhattan Distance")
+        print("3. Linear Conflict")
+
+        h_choice = input("Choose heuristic: ")
+
+        heuristics = {
+            "1": Heuristics.misplaced_tiles,
+            "2": Heuristics.manhattan_distance,
+            "3": Heuristics.linear_conflict
+        }
+
+        if h_choice in heuristics:
+            run_solver(
+                start_state, "GREEDY",
+                heuristics[h_choice]
+            )
+        else:
+            print("Invalid heuristic.")
+
+    elif choice == "5":
+        print("1. Misplaced Tiles")
+        print("2. Manhattan Distance")
+        print("3. Linear Conflict")
+
+        h_choice = input("Choose heuristic: ")
+
+        heuristics = {
+            "1": Heuristics.misplaced_tiles,
+            "2": Heuristics.manhattan_distance,
+            "3": Heuristics.linear_conflict
+        }
+
+        if h_choice in heuristics:
+            run_solver(
+                start_state, "ASTAR",
+                heuristics[h_choice]
+            )
+        else:
+            print("Invalid heuristic.")
+
+    else:
+        print("Invalid choice.")

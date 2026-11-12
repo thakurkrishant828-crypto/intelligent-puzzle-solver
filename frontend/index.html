@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Intelligent Puzzle Solver | CSE276</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand-mark">AI</div>
+    <div>
+      <h1>Intelligent Puzzle Solver</h1>
+      <p>CSE276 · 8-Puzzle using Search Techniques</p>
+    </div>
+    <span class="status"><i></i> AI ENGINE</span>
+  </header>
+
+  <main class="container">
+    <section class="intro">
+      <p class="eyebrow">ARTIFICIAL INTELLIGENCE PROJECT</p>
+      <h2>Find the smartest path to the goal.</h2>
+      <p class="intro-copy">Arrange the numbered tiles using BFS, DFS, UCS, Greedy Best-First Search or A*.</p>
+    </section>
+
+    <section class="workspace">
+      <div class="panel board-panel">
+        <div class="panel-heading">
+          <div><p class="eyebrow">PUZZLE BOARD</p><h3>Current state</h3></div>
+          <button id="shuffleBtn" class="secondary">Shuffle</button>
+        </div>
+        <div id="board" class="board" aria-label="Puzzle board"></div>
+        <div class="board-actions">
+          <button id="resetBtn" class="secondary">Reset</button>
+          <button id="solveBtn" class="primary">Solve puzzle <span>→</span></button>
+        </div>
+        <p class="hint">Tip: Click a tile next to the empty space to move it.</p>
+      </div>
+
+      <div class="panel settings-panel">
+        <p class="eyebrow">CONFIGURATION</p>
+        <h3>Search settings</h3>
+        <label for="algorithm">Search algorithm</label>
+        <select id="algorithm">
+          <option value="ASTAR">A* Search</option>
+          <option value="BFS">Breadth-First Search (BFS)</option>
+          <option value="DFS">Depth-First Search (DFS)</option>
+          <option value="UCS">Uniform Cost Search (UCS)</option>
+          <option value="GREEDY">Greedy Best-First Search</option>
+        </select>
+
+        <label for="heuristic">Heuristic function</label>
+        <select id="heuristic">
+          <option value="manhattan">Manhattan Distance (h2)</option>
+          <option value="misplaced">Misplaced Tiles (h1)</option>
+          <option value="linear_conflict">Linear Conflict (h3)</option>
+        </select>
+
+        <div class="goal-card">
+          <span>GOAL STATE</span>
+          <div class="mini-board">
+            <b>1</b><b>2</b><b>3</b><b>4</b><b>5</b><b>6</b><b>7</b><b>8</b><b class="empty"></b>
+          </div>
+          <small>Reach this arrangement to solve the puzzle.</small>
+        </div>
+      </div>
+    </section>
+
+    <section id="results" class="panel results-panel hidden">
+      <div class="panel-heading">
+        <div><p class="eyebrow">SEARCH RESULTS</p><h3>Execution summary</h3></div>
+        <span id="resultBadge" class="result-badge">SOLVED</span>
+      </div>
+      <div class="metrics">
+        <div><span>Moves</span><strong id="movesMetric">—</strong></div>
+        <div><span>Expanded nodes</span><strong id="expandedMetric">—</strong></div>
+        <div><span>Generated nodes</span><strong id="generatedMetric">—</strong></div>
+        <div><span>Time (seconds)</span><strong id="timeMetric">—</strong></div>
+        <div><span>Peak memory</span><strong id="memoryMetric">—</strong></div>
+      </div>
+      <div class="playback">
+        <div class="playback-title"><div><p class="eyebrow">SOLUTION PLAYBACK</p><h3 id="stepLabel">Step 0</h3></div><span id="moveLabel">Initial state</span></div>
+        <div id="playbackBoard" class="board playback-board"></div>
+        <div class="playback-controls">
+          <button id="prevBtn" class="secondary">← Previous</button>
+          <button id="nextBtn" class="primary">Next →</button>
+        </div>
+        <p class="hint" id="pathInfo"></p>
+      </div>
+    </section>
+    <div id="message" class="message" role="status"></div>
+  </main>
+
+  <footer>INTELLIGENT PUZZLE SOLVER <span>·</span> LOVELY PROFESSIONAL UNIVERSITY</footer>
+  <script src="/script.js"></script>
+</body>
+</html>
